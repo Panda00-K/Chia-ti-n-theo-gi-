@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chia Tiền Game - GitHub Version</title>
+    <!-- React & Babel CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const App = () => {
+            const [billTotal, setBillTotal] = useState(100000);
+            const [billStartTime, setBillStartTime] = useState("13:00");
+            const [billEndTime, setBillEndTime] = useState("15:00");
+            const [players, setPlayers] = useState([
+                { id: 1, name: "Người chơi 1", start: "13:00", end: "15:00", manualAmount: null },
+                { id: 2, name: "Người chơi 2", start: "13:30", end: "15:00", manualAmount: null }
+            ]);
+
+            const getMinutes = (timeStr) => {
+                if (!timeStr) return 0;
+                const [hrs, mins] = timeStr.split(':').map(Number);
+                return hrs * 60 + mins;
+            };
+
+            const calculateDuration = (start, end) => {
+                let diff = getMinutes(end) - getMinutes(start);
+                if (diff < 0) diff += 1440; 
+                return diff;
+            };
+
+            const isTimeValid = (pStart, pEnd) => {
+                const bStart = getMinutes(billStartTime);
+                const bEnd = getMinutes(billEndTime);
+                const s = getMinutes(pStart);
+                const e = getMinutes(pEnd);
+                const checkInRange = (time) => {
+                    if (bStart <= bEnd) return time >= bStart && time <= bEnd;
+                    return time >= bStart || time <= bEnd;
+                };
+                return checkInRange(s) && checkInRange(e);
+            };
+
+            const addPlayer = () => {
+                setPlayers([...players, {
+                    id: Date.now(),
+                    name: `Người chơi ${players.length + 1}`,
+                    start: billStartTime,
+                    end: billEndTime,
+                    manualAmount: null
+                }]);
+            };
+
+            const removePlayer = (id) => {
+                if (players.length > 1) setPlayers(players.filter(p => p.id !== id));
+            };
+
+            const updatePlayer = (id, field, value) => {
+                setPlayers(players.map(p => p.id === id ? { ...p, [field]: value } : p));
+            };
+
+            const formatMoney = (amount) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+
+            const playersWithDuration = players.map(p => ({
+                ...p,
+                duration: calculateDuration(p.start, p.end),
+                isValid: isTimeValid(p.start, p.end)
+            }));
+
+            const autoPlayers = playersWithDuration.filter(p => p.manualAmount === null);
+            const manualTotal = playersWithDuration
+                .filter(p => p.manualAmount !== null)
+                .reduce((sum, p) => sum + parseFloat(p.manualAmount || 0), 0);
+            
+            const remainingBill = billTotal - manualTotal;
+            const totalActiveMinutes = autoPlayers.reduce((sum, p) => sum + p.duration, 0);
+
+            const playerResults = playersWithDuration.map(p => {
+                let finalAmount = 0;
+                if (p.manualAmount !== null) {
+                    finalAmount = parseFloat(p.manualAmount);
+                } else if (totalActiveMinutes > 0) {
+                    finalAmount = Math.round((p.duration / totalActiveMinutes) * remainingBill);
+                }
+                return { ...p, finalAmount };
+            });
+
+            const totalCalculated = playerResults.reduce((sum, p) => sum + p.finalAmount, 0);
+
+            return (
+                <div className="min-h-screen p-4 md:p-8 font-sans text-slate-900">
+                    <div className="max-w-5xl mx-auto">
+                        <header className="mb-8 text-center">
+                            <h1 className="text-3xl font-bold text-indigo-700 flex items-center justify-center gap-2">
+                                📊 Chia Tiền Game Tỷ Lệ
+                            </h1>
+                        </header>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="lg:col-span-1 space-y-6">
+                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                                    <h2 className="text-lg font-semibold mb-4 border-b pb-2 text-green-600">Hóa đơn</h2>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-600 mb-1">Tổng tiền (VNĐ)</label>
+                                            <input type="number" value={billTotal} onChange={(e) => setBillTotal(Number(e.target.value))} className="w-full p-3 bg-slate-50 border rounded-xl font-bold text-lg outline-none focus:ring-2 focus:ring-indigo-500" />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-xs font-medium text-slate-600">Bắt đầu</label>
+                                                <input type="time" value={billStartTime} onChange={(e) => setBillStartTime(e.target.value)} className="w-full p-2 border rounded-lg" />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-medium text-slate-600">Kết thúc</label>
+                                                <input type="time" value={billEndTime} onChange={(e) => setBillEndTime(e.target.value)} className="w-full p-2 border rounded-lg" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-xl font-bold">Người chơi ({players.length})</h2>
+                                    <button onClick={addPlayer} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium">+ Thêm người</button>
+                                </div>
+
+                                <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                                    {playerResults.map((player) => (
+                                        <div key={player.id} className={`p-4 rounded-2xl border ${!player.isValid ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
+                                            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                                                <div className="md:col-span-4">
+                                                    <label className="text-xs font-semibold text-slate-500 uppercase">Tên</label>
+                                                    <input type="text" value={player.name} onChange={(e) => updatePlayer(player.id, 'name', e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="text-xs font-semibold text-slate-500 uppercase">Vào</label>
+                                                    <input type="time" value={player.start} onChange={(e) => updatePlayer(player.id, 'start', e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="text-xs font-semibold text-slate-500 uppercase">Ra</label>
+                                                    <input type="time" value={player.end} onChange={(e) => updatePlayer(player.id, 'end', e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
+                                                </div>
+                                                <div className="md:col-span-3">
+                                                    <label className="text-xs font-semibold text-orange-600 uppercase">Tiền riêng</label>
+                                                    <input type="number" placeholder="Tự động..." value={player.manualAmount || ''} onChange={(e) => updatePlayer(player.id, 'manualAmount', e.target.value === '' ? null : e.target.value)} className="w-full p-2 bg-orange-50 border border-orange-200 rounded-lg text-sm" />
+                                                </div>
+                                                <div className="md:col-span-1 flex justify-center">
+                                                    <button onClick={() => removePlayer(player.id)} className="p-2 text-slate-400 hover:text-red-600">🗑️</button>
+                                                </div>
+                                            </div>
+                                            <div className="mt-3 flex justify-between items-center text-xs font-medium">
+                                                <span className="text-slate-500">⏱️ {player.duration} phút</span>
+                                                <span className="text-indigo-600 font-bold">{formatMoney(player.finalAmount)}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="mt-8 pt-6 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
+                                    <div className="text-sm font-bold text-slate-500">
+                                        Trạng thái: {Math.abs(totalCalculated - billTotal) < 10 ? <span className="text-green-600">KHỚP 100%</span> : <span className="text-red-500">LỆCH</span>}
+                                    </div>
+                                    <div className="bg-indigo-600 text-white px-8 py-4 rounded-3xl text-right">
+                                        <p className="text-[10px] uppercase font-bold opacity-80">Tổng thu</p>
+                                        <p className="text-2xl font-black">{formatMoney(totalCalculated)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
